@@ -1,17 +1,10 @@
 cabal-version:      2.4
-
 name:               sudoku
-
 version:            0.1.0.0
-
 license: BSD-2-Clause
-
 license-file: LICENSE
-
 author: mfbott
-
 copyright: mfbott
-
 category: solvers
 
 extra-source-files: CHANGELOG.md
