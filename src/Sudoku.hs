@@ -132,9 +132,7 @@ safeRead str = case reads str of
 
 
 safeReadIntList :: String -> Maybe [Int]
-safeReadIntList str = decide $ safeRead <$> words str
-  where
-    decide list = if elem Nothing list then Nothing else sequence list
+safeReadIntList str = sequence $ safeRead <$> words str
 
 
 loadFileToInts :: FilePath -> IO (Either IOException (Maybe [Int]))
