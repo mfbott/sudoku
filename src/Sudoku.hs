@@ -11,15 +11,19 @@ import Control.Exception
 import System.IO (stderr, hPutStrLn)
 
 
+-- For better or worse, Haskell doesn't provide its own 2D-array type (or
+-- rather: that particular kind of syntactic sugar). This means that we either
+-- have to define it ourselves or use one of the more powerful array libraries.
+-- We'll define it ourselves (on top of Vector):
 data Matrix a = Matrix !Int !Int !(VU.Vector a) deriving (Eq, Ord)
 
-type Sudoku = Matrix Int
+type Sudoku = Matrix Int -- whereby a sudoku is a 9x9 matrix.
 
-
+-- Encode subscripts (x and y) as the indices of a 1D-array:
 indexOf :: Matrix a -> Int -> Int -> Int
 indexOf (Matrix _ column _) x y = x + y * column
 
-
+-- Read an entry from a 2D-matrix by subscript:
 lookup :: VU.Unbox a => Int -> Int -> Matrix a -> a
 lookup x y m@(Matrix _ _ v) = (VU.!) v $ indexOf m x y
 
@@ -28,20 +32,9 @@ updateMatrix :: VU.Unbox a => Matrix a -> [(Int, a)] -> Matrix a
 updateMatrix (Matrix rows columns v) xs = Matrix rows columns (v VU.// xs)
 
 
-updateMatrixSingleton :: VU.Unbox a => Matrix a -> (Int, a) -> Matrix a
-updateMatrixSingleton matrix x = updateMatrix matrix [x]
-
-
 updateMatrixByCoords :: VU.Unbox a => Matrix a -> [((Int, Int), a)] -> Matrix a
 updateMatrixByCoords matrix = updateMatrix matrix . fmap
   (\(tupl, x) -> ( (uncurry . indexOf) matrix tupl, x))
-
-
-updateMatrixByCoord :: VU.Unbox a => Matrix a -> ((Int, Int), a) -> Matrix a
-updateMatrixByCoord matrix ((x, y), element) =
-  updateMatrixSingleton matrix (coords, element)
-  where
-    coords = indexOf matrix x y
 
 
 lookupRow :: VU.Unbox a => Matrix a -> Int -> [a]
@@ -143,7 +136,8 @@ loadSudokuFile :: FilePath -> IO (Maybe (Matrix Int))
 loadSudokuFile file =
   do eitherInts <- loadFileToInts file
      case eitherInts of
-       Right (Just list) | length list == 81 ->
+       Right (Just list) | length list == 81 -> -- A sudoku consists of exactly
+                                                -- 81 integers (9*9 = 81).
                              return $ Just $ Matrix 9 9 (VU.fromList list)
 
        Left _ ->
@@ -222,7 +216,7 @@ type Guess  = ((Int, Int), Int, Sudoku)
 insertGuess :: Guess -> (Sudoku, Guess)
 insertGuess guess@(coordinates, value, matrix) = (matrix', guess)
   where
-    matrix' = updateMatrixByCoord matrix (coordinates, value)
+    matrix' = updateMatrixByCoords matrix [(coordinates, value)]
 
 insertGuessesBySet :: Sudoku -> [((Int, Int), Set Int)] -> [Sudoku]
 insertGuessesBySet matrix = concat . fmap f
