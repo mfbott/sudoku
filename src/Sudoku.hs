@@ -148,7 +148,7 @@ loadSudokuFile file =
 
 
 nines :: Set Int
-nines = (Set.fromList [1..9])
+nines = Set.fromList [1..9]
 
 
 lookupCandidates :: Int -> Int -> Matrix Int -> Set Int
@@ -160,101 +160,39 @@ lookupCandidates x y matrix = if lookup x y matrix /= 0
            (Set.fromList <$> [lookupRow matrix y, lookupColumn matrix x])
 
 
-lookupCandidatesExcept :: Int -> Int -> Matrix Int ->  V.Vector (Set Int)  -> Set Int
-lookupCandidatesExcept x y matrix except = if lookup x y matrix /= 0
-                              then Set.empty
-                              else (nines \\ foldr1 Set.union sets) \\ (except V.! (indexOf matrix x y))
-  where
-    sets = lookupBlock x y matrix :
-           (Set.fromList <$> [lookupRow matrix y, lookupColumn matrix x])
+allCandidatesWithCoords :: Sudoku -> [((Int, Int), Set Int)]
+allCandidatesWithCoords matrix =
+  filter (not . null . snd)
+  [((x, y), lookupCandidates x y matrix) | x <- [0..8], y<- [0..8]]
 
 
-allCandidatesWithCoords :: Matrix Int -> [((Int, Int), Set Int)]
-allCandidatesWithCoords matrix = filter (not . null . snd) [((x, y), lookupCandidates x y matrix) | x <- [0..8], y<- [0..8]]
-
-
-allCandidatesWithCoordsExcept :: V.Vector (Set Int) -> Sudoku -> [((Int, Int), Set Int)]
-allCandidatesWithCoordsExcept except matrix =
-  filter (not . null . snd) [((x, y), lookupCandidatesExcept x y matrix except) | x <- [0..8], y<- [0..8]]
-
-
-covers :: Sudoku -> [((Int, Int), Set Int)]
-covers = filter (\(_, set) -> length set == 1) . allCandidatesWithCoords
-
-
-insertCovers :: Matrix Int -> Matrix Int
-insertCovers matrix = updateMatrixByCoords matrix $ f <$> covers matrix
-  where
-    f (c, set) = (c, head $ Set.toList set) -- "Set.toList set" is guaranteed to
-                                            -- be non-empty. However, it might
-                                            -- be a good idea refactor this
-                                            -- regardless, just to avoid the
-                                            -- "head" function altogether.
-
-
-insertCoversSpeculative :: V.Vector (Set Int) -> Matrix Int -> Matrix Int
-insertCoversSpeculative except matrix = updateMatrixByCoords matrix $ f <$> covers_
-  where
-    covers_ = filter (\(_, set) -> length set == 1) $ allCandidatesWithCoordsExcept except matrix
-    f (c, set) = (c, head $ Set.toList set) -- See comment above.
-
-
-ordCandidatesExcept :: V.Vector (Set Int) -> Sudoku -> [((Int, Int), Set Int)]
-ordCandidatesExcept except = sorted . (allCandidatesWithCoordsExcept except)
+allCandidatesSorted :: Sudoku -> [((Int, Int), Set Int)]
+allCandidatesSorted = sorted . allCandidatesWithCoords
   where
     sorted :: [((Int, Int), Set Int)] -> [((Int, Int), Set Int)]
     sorted = sortBy (compare `on` length . snd) . filter ((> 0) . length . snd)
 
 
-ordCandidatesExcept' :: V.Vector (Set Int) -> Sudoku -> [[((Int, Int), Int)]]
-ordCandidatesExcept' except matrix =
-  sequence <$> ((fmap . fmap) Set.toList $ ordCandidatesExcept except matrix)
+safeHead :: [a] -> [a]
+safeHead (x:_) = [x]
+safeHead _     = []
 
+insertPivotCandidates :: Sudoku ->[Sudoku]
+insertPivotCandidates matrix =
+  (\x -> updateMatrixByCoords matrix [x]) <$> pivotCandidates
 
-type Guess  = ((Int, Int), Int, Sudoku)
-
-insertGuess :: Guess -> (Sudoku, Guess)
-insertGuess guess@(coordinates, value, matrix) = (matrix', guess)
   where
-    matrix' = updateMatrixByCoords matrix [(coordinates, value)]
-
-insertGuessesBySet :: Sudoku -> [((Int, Int), Set Int)] -> [Sudoku]
-insertGuessesBySet matrix = concat . fmap f
-  where
-    f (coords, set) = fst .
-      (\v -> insertGuess (coords, v, matrix)) <$> (Set.toList set)
+    pivotCandidates :: [((Int, Int), Int)]
+    pivotCandidates = concat ((\(c, set) -> sequence (c, Set.toList set) )
+                              <$> (safeHead $ allCandidatesSorted matrix))
 
 
 solve :: Sudoku -> [Sudoku]
-solve matrix = take 1 $ track except matrix
-  where
-    except = V.fromList $ take 81 $ repeat Set.empty
+solve matrix = take 1 $ track matrix
 
 
-track :: V.Vector (Set Int) -> Sudoku -> [Sudoku]
-track except matrix =
+track :: Sudoku -> [Sudoku]
+track matrix =
   case doneSudokuSomewhatUnsafe matrix of
-    True             -> [matrix]
-
-    _   | null cover -> if null exceptList then []
-                        else
-                          concat
-                             ((\ex -> track ex $
-                                 insertCoversSpeculative ex matrix) <$> exceptList)
-
-    _                -> track except $ insertCovers matrix
-
-  where
-    cover      = insertGuessesBySet matrix $ covers matrix
-
-    exceptList :: [V.Vector (Set Int)]
-    exceptList = exceptListGo except $ concat $ ordCandidatesExcept' except matrix
-
-    exceptListGo :: V.Vector (Set Int) -> [((Int, Int), Int)] -> [V.Vector (Set Int)]
-    exceptListGo _    []                      = []
-    exceptListGo excp (((x,y), candidate):xs) =
-      (excp V.// [(index, Set.insert candidate set)]) : exceptListGo excp xs
-
-      where
-        index  = indexOf matrix x y
-        set    = excp V.! index
+    True  -> [matrix]
+    _     -> concat $ track <$> insertPivotCandidates matrix
