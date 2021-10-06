@@ -125,11 +125,11 @@ safeRead str = case reads str of
 
 
 safeReadIntList :: String -> Maybe [Int]
-safeReadIntList str = sequence $ safeRead <$> words str
+safeReadIntList = sequence . fmap safeRead . words
 
 
 loadFileToInts :: FilePath -> IO (Either IOException (Maybe [Int]))
-loadFileToInts file = try $ safeReadIntList <$> readFile file
+loadFileToInts = try . fmap safeReadIntList . readFile
 
 
 loadSudokuFile :: FilePath -> IO (Maybe (Matrix Int))
@@ -177,10 +177,10 @@ safeHead :: [a] -> [a]
 safeHead (x:_) = [x]
 safeHead _     = []
 
+
 insertPivotCandidates :: Sudoku ->[Sudoku]
 insertPivotCandidates matrix =
   (\x -> updateMatrixByCoords matrix [x]) <$> pivotCandidates
-
   where
     pivotCandidates :: [((Int, Int), Int)]
     pivotCandidates = concat ((\(c, set) -> sequence (c, Set.toList set) )
@@ -188,7 +188,7 @@ insertPivotCandidates matrix =
 
 
 solve :: Sudoku -> [Sudoku]
-solve matrix = take 1 $ track matrix
+solve = take 1 . track
 
 
 track :: Sudoku -> [Sudoku]
