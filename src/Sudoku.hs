@@ -50,15 +50,15 @@ instance (Show a, VU.Unbox a) => Show (Matrix a) where
     intercalate "\n" $ show <$> [lookupRow m y | y <- [0..rows-1]]
 
 
-emptySudoku :: Matrix Int
+emptySudoku :: Sudoku
 emptySudoku = Matrix 9 9 (VU.replicate 81 0)
 
 
-testMatrix :: Matrix Int
+testMatrix :: Sudoku
 testMatrix = Matrix 9 9 (VU.fromList [1..81])
 
 
-firstVerticalBlockFrom :: Matrix Int -> Int -> ([Int],[[Int]])
+firstVerticalBlockFrom :: Sudoku -> Int -> ([Int],[[Int]])
 firstVerticalBlockFrom matrix startRow = traverse threes [startRow..startRow+2]
   where
     threes = splitAt 3 . lookupRow matrix
@@ -70,25 +70,25 @@ blocks (block, rest) =
   block : blocks (traverse (splitAt 3) rest)
 
 
-verticalBlocksFrom :: Matrix Int -> Int -> [[Int]]
+verticalBlocksFrom :: Sudoku -> Int -> [[Int]]
 verticalBlocksFrom matrix startRow =
   blocks $ firstVerticalBlockFrom matrix startRow
 
 
-allRows :: Matrix Int -> [[Int]]
+allRows :: Sudoku -> [[Int]]
 allRows matrix = lookupRow matrix <$> [0..8]
 
 
-allColumns :: Matrix Int -> [[Int]]
+allColumns :: Sudoku -> [[Int]]
 allColumns matrix = lookupColumn matrix <$> [0..8]
 
 
-allBlocks :: Matrix Int -> V.Vector (Set Int)
+allBlocks :: Sudoku -> V.Vector (Set Int)
 allBlocks matrix =
   V.fromList $ Set.fromList <$> (concat $ verticalBlocksFrom matrix <$> [0,3..8])
 
 
-lookupBlock :: Int -> Int -> Matrix Int -> Set Int
+lookupBlock :: Int -> Int -> Sudoku -> Set Int
 lookupBlock x y matrix = allBlocks matrix V.! ((shift x) + 3* (shift y))
   where
     shift n | n < 0 || n > 8 = error "lookupBlock: Out of range."
@@ -97,7 +97,7 @@ lookupBlock x y matrix = allBlocks matrix V.! ((shift x) + 3* (shift y))
             | otherwise      = 2
 
 
-doneSudoku :: Matrix Int -> Bool
+doneSudoku :: Sudoku -> Bool
 doneSudoku matrix = let  check xs = sum xs == sum [1..9]
                          checklen l = length l == 9
                          checkNub xs = checklen (nub $ (filter (\x -> x /= 0)) xs)
@@ -110,7 +110,7 @@ doneSudoku matrix = let  check xs = sum xs == sum [1..9]
                       all checklen ((Set.filter (\x -> x /= 0)) <$> allBlocks matrix)
 
 
-doneSudokuSomewhatUnsafe :: Matrix Int -> Bool
+doneSudokuSomewhatUnsafe :: Sudoku -> Bool
 doneSudokuSomewhatUnsafe matrix = let check xs = sum xs == sum [1..9]
                     in
                       all check (allRows matrix) &&
